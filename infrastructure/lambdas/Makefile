@@ -39,7 +39,7 @@ package:
 	@set -e; \
 	for src in */src; do \
 		lambda_name=$${src%/src}; \
-		if [ ! -f "$$src/create_link/handler.py" ] && [ ! -f "$$src/handler.py" ]; then \
+		if [ ! -f "$$src/$$lambda_name/handler.py" ] && [ ! -f "$$src/handler.py" ]; then \
 			echo "Skipping $$lambda_name; no handler source found"; \
 			continue; \
 		fi; \
