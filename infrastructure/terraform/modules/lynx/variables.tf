@@ -46,7 +46,60 @@ variable "domain_root" {
   description = "Public app domain for this environment (e.g. lynx.example.com)"
 }
 
+variable "route53_zone_name" {
+  type        = string
+  description = "Route 53 hosted zone that contains the public app domain"
+}
+
 variable "alert_email" {
   type        = string
   description = "Email address for Lynx alert notifications"
+}
+
+variable "default_ttl" {
+  type        = string
+  description = "Default redirect TTL tag value"
+  default     = "24h"
+}
+
+variable "default_ttl_expiration_days" {
+  type        = number
+  description = "Lifecycle expiration days for default TTL redirects"
+  default     = 1
+}
+
+variable "extended_ttl" {
+  type        = string
+  description = "Extended redirect TTL tag value"
+  default     = "7d"
+}
+
+variable "extended_ttl_expiration_days" {
+  type        = number
+  description = "Lifecycle expiration days for extended TTL redirects"
+  default     = 7
+}
+
+variable "code_length" {
+  type        = number
+  description = "Generated short-code length"
+  default     = 8
+}
+
+variable "max_url_length" {
+  type        = number
+  description = "Maximum accepted target URL length"
+  default     = 2048
+}
+
+variable "lambda_runtime" {
+  type        = string
+  description = "Python runtime for regional Lambda functions"
+  default     = "python3.13"
+}
+
+variable "edge_signer_runtime" {
+  type        = string
+  description = "Python runtime for the Lambda@Edge signer"
+  default     = "python3.13"
 }

@@ -33,3 +33,8 @@ variable "domain_root" {
   description = "Public app domain for this environment (e.g. lynx.example.com)"
   default     = "lynx.example.com"
 }
+
+variable "route53_zone_name" {
+  type        = string
+  description = "Route 53 hosted zone that contains the public app domain"
+}
