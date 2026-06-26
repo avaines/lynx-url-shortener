@@ -34,7 +34,19 @@ variable "domain_root" {
   default     = "lynx.example.com"
 }
 
+variable "alias_domain_names" {
+  type        = list(string)
+  description = "Additional public app domains to alias to the same CloudFront distribution"
+  default     = []
+}
+
 variable "route53_zone_name" {
   type        = string
   description = "Route 53 hosted zone that contains the public app domain"
+}
+
+variable "route53_zone_id" {
+  type        = string
+  description = "Route 53 hosted zone ID that contains the public app domain"
+  default     = null
 }

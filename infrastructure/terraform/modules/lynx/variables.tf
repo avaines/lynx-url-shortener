@@ -46,9 +46,21 @@ variable "domain_root" {
   description = "Public app domain for this environment (e.g. lynx.example.com)"
 }
 
+variable "alias_domain_names" {
+  type        = list(string)
+  description = "Additional public app domains to alias to the same CloudFront distribution"
+  default     = []
+}
+
 variable "route53_zone_name" {
   type        = string
   description = "Route 53 hosted zone that contains the public app domain"
+}
+
+variable "route53_zone_id" {
+  type        = string
+  description = "Route 53 hosted zone ID that contains the public app domain"
+  default     = null
 }
 
 variable "alert_email" {
@@ -102,4 +114,36 @@ variable "edge_signer_runtime" {
   type        = string
   description = "Python runtime for the Lambda@Edge signer"
   default     = "python3.13"
+}
+
+variable "cloudwatch_log_retention_days" {
+  type        = number
+  description = "CloudWatch Logs retention period for explicitly managed Lynx log groups"
+  default     = 30
+
+  validation {
+    condition = contains(
+      [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653],
+      var.cloudwatch_log_retention_days,
+    )
+    error_message = "cloudwatch_log_retention_days must be a valid CloudWatch Logs retention value."
+  }
+}
+
+variable "create_link_error_alarm_threshold" {
+  type        = number
+  description = "Number of create-link Lambda runtime errors in one period before alarming"
+  default     = 1
+}
+
+variable "create_link_throttle_alarm_threshold" {
+  type        = number
+  description = "Number of create-link Lambda throttles in one period before alarming"
+  default     = 1
+}
+
+variable "cloudfront_5xx_error_rate_alarm_threshold" {
+  type        = number
+  description = "CloudFront 5xxErrorRate percentage threshold before alarming"
+  default     = 5
 }

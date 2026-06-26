@@ -37,6 +37,7 @@ class Config:
     public_base_url: str
     alerts_topic_arn: str
     environment: str = "unknown"
+    public_hosts: tuple[str, ...] = ()
     default_ttl: str = "24h"
     max_url_length: int = 2048
     code_length: int = 8
@@ -54,11 +55,21 @@ class Config:
         if default_ttl not in TTL_DAYS:
             raise RuntimeError(f"DEFAULT_TTL must be one of: {', '.join(TTL_DAYS)}")
 
+        public_base_url = values["PUBLIC_BASE_URL"].rstrip("/")
+        public_hosts = tuple(
+            host
+            for host in (
+                normalize_host(value) for value in values.get("PUBLIC_HOSTS", "").split(",")
+            )
+            if host
+        )
+
         return cls(
             redirect_bucket_name=values["REDIRECT_BUCKET_NAME"],
-            public_base_url=values["PUBLIC_BASE_URL"].rstrip("/"),
+            public_base_url=public_base_url,
             alerts_topic_arn=values["ALERTS_TOPIC_ARN"],
             environment=values.get("ENVIRONMENT", "unknown"),
+            public_hosts=public_hosts,
             default_ttl=default_ttl,
             max_url_length=int(values.get("MAX_URL_LENGTH", "2048")),
             code_length=int(values.get("CODE_LENGTH", "8")),
@@ -102,7 +113,8 @@ class CreateLinkHandler:
             now = self.clock().astimezone(UTC).replace(microsecond=0)
             expires_at = now + timedelta(days=TTL_DAYS[ttl])
             code, object_key = self.create_redirect_object(target_url, ttl)
-            short_url = f"{self.config.public_base_url}/l/{code}"
+            public_base_url = resolve_public_base_url(event, self.config)
+            short_url = f"{public_base_url}/l/{code}"
 
             self.publish_alert(
                 event=event,
@@ -305,6 +317,57 @@ def validate_ttl(value: Any, default_ttl: str) -> str:
     if not isinstance(ttl, str) or ttl not in TTL_DAYS:
         raise RequestError(400, "ttl must be one of: 24h, 7d")
     return ttl
+
+
+def resolve_public_base_url(event: dict[str, Any], config: Config) -> str:
+    headers = normalize_headers(event.get("headers") or {})
+    allowed_hosts = allowed_public_hosts(config)
+    candidate_hosts = [
+        normalize_host(headers.get("x-lynx-viewer-host")),
+        host_from_https_url(headers.get("origin")),
+        host_from_https_url(headers.get("referer") or headers.get("referrer")),
+    ]
+
+    for host in candidate_hosts:
+        if host and host in allowed_hosts:
+            return f"https://{host}"
+
+    return config.public_base_url
+
+
+def allowed_public_hosts(config: Config) -> set[str]:
+    if config.public_hosts:
+        return set(config.public_hosts)
+
+    host = host_from_https_url(config.public_base_url)
+    return {host} if host else set()
+
+
+def host_from_https_url(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return None
+
+    if parsed.scheme.lower() != "https":
+        return None
+
+    return normalize_host(parsed.hostname)
+
+
+def normalize_host(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    try:
+        parsed = urlsplit(f"//{value.strip()}")
+    except ValueError:
+        return None
+
+    return parsed.hostname.lower() if parsed.hostname else None
 
 
 def is_not_found_error(error: Exception) -> bool:

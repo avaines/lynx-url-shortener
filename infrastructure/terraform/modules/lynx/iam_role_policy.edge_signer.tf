@@ -20,6 +20,26 @@ data "aws_iam_policy_document" "edge_signer" {
   }
 
   statement {
+    sid = "InvokeCreateLinkFunctionViaUrl"
+
+    actions = [
+      "lambda:InvokeFunction",
+    ]
+
+    resources = [
+      aws_lambda_function.create_link.arn,
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "lambda:InvokedViaFunctionUrl"
+      values = [
+        "true",
+      ]
+    }
+  }
+
+  statement {
     sid = "WriteEdgeLogs"
 
     actions = [

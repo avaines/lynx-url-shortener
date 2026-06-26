@@ -18,14 +18,16 @@ export function App() {
   const [copied, setCopied] = useState(false);
 
   const trimmedUrl = targetUrl.trim();
-  const urlError = useMemo(() => validateHttpsUrl(trimmedUrl), [trimmedUrl]);
+  const normalizedUrl = useMemo(() => normalizeTargetUrl(trimmedUrl), [trimmedUrl]);
+  const urlError = useMemo(() => validateHttpsUrl(normalizedUrl), [normalizedUrl]);
   const canSubmit = trimmedUrl.length > 0 && !urlError && status !== "submitting";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCopied(false);
 
-    const validationMessage = validateHttpsUrl(trimmedUrl);
+    const normalizedTargetUrl = normalizeTargetUrl(trimmedUrl);
+    const validationMessage = validateHttpsUrl(normalizedTargetUrl);
     if (validationMessage) {
       setStatus("error");
       setError(validationMessage);
@@ -37,7 +39,7 @@ export function App() {
     setError("");
 
     try {
-      const response = await createLink({ url: trimmedUrl, ttl });
+      const response = await createLink({ url: normalizedTargetUrl, ttl });
       setResult(response);
       setStatus("success");
     } catch (caughtError) {
@@ -58,15 +60,21 @@ export function App() {
 
   return (
     <main className="app-shell">
-      <section className="workspace" aria-labelledby="portal-title">
+      <section
+        className={result ? "workspace workspace-has-result" : "workspace"}
+        aria-labelledby="portal-title"
+      >
         <div className="work-panel">
           <div className="brand-row">
             <div className="brand-mark" aria-hidden="true">
               <Link2 size={28} strokeWidth={2.4} />
             </div>
             <div>
-              <p className="eyebrow">Lynx</p>
-              <h1 id="portal-title">Shorten a link</h1>
+              <p className="eyebrow">
+                <b>Lynx</b>
+                <i>.vaines.dev</i>
+              </p>
+              <h1 id="portal-title">Link Shortener</h1>
             </div>
           </div>
 
@@ -90,7 +98,9 @@ export function App() {
               />
             </div>
             <p id="url-hint" className={trimmedUrl && urlError ? "field-error" : "field-hint"}>
-              {trimmedUrl && urlError ? urlError : "Only HTTPS destinations are accepted."}
+              {trimmedUrl && urlError
+                ? urlError
+                : "HTTPS is required. Bare domains are prefixed automatically."}
             </p>
 
             <fieldset>
@@ -132,51 +142,46 @@ export function App() {
           </form>
         </div>
 
-        <aside className="result-panel" aria-live="polite">
-          <div className="visual-card" aria-hidden="true">
-            <div className="trace trace-a" />
-            <div className="trace trace-b" />
-            <div className="trace-node node-a" />
-            <div className="trace-node node-b" />
-            <div className="trace-node node-c" />
-          </div>
-
-          {result ? (
-            <div className="result-card">
-              <div className="result-heading">
-                <ShieldCheck size={22} aria-hidden="true" />
-                <span>Ready</span>
-              </div>
-              <a href={result.short_url} className="short-url">
-                {result.short_url}
-              </a>
-              <dl>
-                <div>
-                  <dt>Code</dt>
-                  <dd>{result.code}</dd>
-                </div>
-                <div>
-                  <dt>Lifetime</dt>
-                  <dd>{result.ttl === "24h" ? "24 hours" : "7 days"}</dd>
-                </div>
-              </dl>
-              <button className="copy-button" type="button" onClick={handleCopy}>
-                {copied ? <Check size={18} aria-hidden="true" /> : <Clipboard size={18} aria-hidden="true" />}
-                <span>{copied ? "Copied" : "Copy link"}</span>
-              </button>
+        {result ? (
+          <aside className="result-panel" aria-live="polite">
+            <div className="result-heading">
+              <ShieldCheck size={22} aria-hidden="true" />
+              <span>Ready</span>
             </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">
-                <ShieldCheck size={28} aria-hidden="true" />
+            <a href={result.short_url} className="short-url">
+              {result.short_url}
+            </a>
+            <dl>
+              <div>
+                <dt>Code</dt>
+                <dd>{result.code}</dd>
               </div>
-              <p>Generated links appear here.</p>
-            </div>
-          )}
-        </aside>
+              <div>
+                <dt>Lifetime</dt>
+                <dd>{result.ttl === "24h" ? "24 hours" : "7 days"}</dd>
+              </div>
+            </dl>
+            <button className="copy-button" type="button" onClick={handleCopy}>
+              {copied ? (
+                <Check size={18} aria-hidden="true" />
+              ) : (
+                <Clipboard size={18} aria-hidden="true" />
+              )}
+              <span>{copied ? "Copied" : "Copy link"}</span>
+            </button>
+          </aside>
+        ) : null}
       </section>
     </main>
   );
+}
+
+function normalizeTargetUrl(value: string): string {
+  if (!value || /^[a-z][a-z\d+.-]*:\/\//i.test(value)) {
+    return value;
+  }
+
+  return `https://${value}`;
 }
 
 function validateHttpsUrl(value: string): string {

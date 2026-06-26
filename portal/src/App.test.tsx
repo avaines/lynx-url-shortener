@@ -56,6 +56,34 @@ describe("App", () => {
     });
   });
 
+  it("adds https to bare domains before submitting", async () => {
+    const user = setupUser();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        code: "bareHost",
+        short_url: "https://lynx.example.com/l/bareHost",
+        target_url: "https://example.com/launch",
+        ttl: "24h",
+        nominal_expires_at: "2026-06-27T12:00:00Z"
+      })
+    );
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/destination url/i), "example.com/launch");
+    await user.click(screen.getByRole("button", { name: /create short link/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/links",
+      expect.objectContaining({
+        body: JSON.stringify({
+          url: "https://example.com/launch",
+          ttl: "24h"
+        })
+      })
+    );
+  });
+
   it("renders a successful short URL and copies it", async () => {
     const user = setupUser();
     fetchMock.mockResolvedValueOnce(
@@ -100,6 +128,26 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: /create short link/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("url must use the https scheme");
+  });
+
+  it("renders Lambda Function URL error messages", async () => {
+    const user = setupUser();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          Message: "Forbidden. For troubleshooting Function URL authorization issues."
+        },
+        false
+      )
+    );
+    render(<App />);
+
+    await user.type(screen.getByLabelText(/destination url/i), "https://example.com/error");
+    await user.click(screen.getByRole("button", { name: /create short link/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Forbidden. For troubleshooting Function URL authorization issues."
+    );
   });
 });
 

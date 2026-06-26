@@ -16,6 +16,7 @@ resource "aws_lambda_function" "create_link" {
       ENVIRONMENT          = var.environment
       MAX_URL_LENGTH       = tostring(var.max_url_length)
       PUBLIC_BASE_URL      = local.public_base_url
+      PUBLIC_HOSTS         = join(",", local.cloudfront_aliases)
       REDIRECT_BUCKET_NAME = aws_s3_bucket.redirects.id
     }
   }

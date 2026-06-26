@@ -17,6 +17,7 @@ LOGGER = logging.getLogger(__name__)
 ALGORITHM = "AWS4-HMAC-SHA256"
 SERVICE = "lambda"
 LAMBDA_FUNCTION_URL_HOST_PATTERN = re.compile(r"\.lambda-url\.([a-z0-9-]+)\.on\.aws\.?$")
+VIEWER_HOST_HEADER = "X-Lynx-Viewer-Host"
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,7 @@ class EdgeSigner:
         return request
 
     def sign_request(self, request: dict[str, Any]) -> None:
+        viewer_host = get_header(request, "Host")
         host = extract_origin_host(request)
         region = extract_region_from_host(host)
         timestamp = self.clock().astimezone(UTC).replace(microsecond=0)
@@ -65,6 +67,8 @@ class EdgeSigner:
         credential_scope = f"{date_stamp}/{region}/{SERVICE}/aws4_request"
 
         set_header(request, "Host", host)
+        if viewer_host and viewer_host.lower() != host:
+            set_header(request, VIEWER_HOST_HEADER, viewer_host)
         set_header(request, "X-Amz-Date", amz_date)
 
         signed_header_values = {

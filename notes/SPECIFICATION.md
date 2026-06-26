@@ -337,6 +337,7 @@ Lambda@Edge constraints:
 - CloudFront must associate a published function version, not `$LATEST`.
 - The execution role must trust both Lambda and Lambda@Edge service principals as required.
 - The role must allow `lambda:InvokeFunctionUrl` for the protected create-link Lambda Function URL with the `lambda:FunctionUrlAuthType = AWS_IAM` condition.
+- The role must also allow `lambda:InvokeFunction` with `lambda:InvokedViaFunctionUrl = true`, which is required for new Lambda Function URLs.
 
 ## Portal Design
 
@@ -446,8 +447,9 @@ This may be implemented by extending the shared S3 module with explicit opt-in v
 
 Required logs and metrics:
 
-- CloudWatch Logs for `create_link`.
-- CloudWatch Logs for Lambda@Edge, noting that edge logs appear in the Region closest to execution.
+- CloudWatch Logs for `create_link`, with explicit retention configured by Terraform.
+- CloudWatch Logs for the Lambda@Edge signer source function in `us-east-1`, with explicit retention configured by Terraform.
+- Lambda@Edge invocation logs are emitted in the AWS Region where each edge replica executes, not only in `us-east-1`. During operations, check CloudWatch Logs in Regions near viewers for Lambda@Edge replica log groups.
 - Lambda errors and duration metrics.
 - SNS publish failures from `create_link`.
 - CloudFront standard metrics.
@@ -456,8 +458,9 @@ Recommended alarms:
 
 - Create-link Lambda errors.
 - Create-link Lambda throttles.
-- SNS publish failures if exposed through Lambda error handling.
 - Elevated CloudFront `5xx` rate.
+
+SNS publish failures are not treated as a separate v1 alarm. The create-link Lambda currently converts unexpected failures into HTTP `500` responses, so SNS publish failures are expected to surface through the CloudFront `5xx` alarm and Lambda logs rather than the Lambda `Errors` metric. A future version can add a custom application metric if single failed SNS publishes need dedicated alerting.
 
 ## Abuse Controls
 
@@ -467,9 +470,9 @@ Because link creation is public in the initial version, the implementation shoul
 - Maximum URL length.
 - Generated-only codes.
 - No arbitrary user-supplied object keys.
-- No open CORS requirement because portal and API share the same CloudFront domain.
+- No open CORS requirement because the portal and API share the same CloudFront domain and the portal uses same-origin `POST /api/links`.
 - Consider AWS WAF rate-based rules on the CloudFront distribution.
-- Keep SNS subscriptions restricted because alert messages include full target URLs and requester data.
+- Keep SNS subscriptions restricted because alert messages include full target URLs and requester data. The v1 Terraform module manages a single email subscription from `var.alert_email`, and the SNS topic policy grants publishing to the create-link role and CloudWatch alarms.
 
 ## Testing Requirements
 

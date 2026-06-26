@@ -5,9 +5,14 @@ locals {
   unique_id_account = var.unique_ids["account"]
   unique_id_global  = var.unique_ids["global"]
 
-  domain_name       = trimsuffix(var.domain_root, ".")
-  route53_zone_name = trimsuffix(var.route53_zone_name, ".")
-  public_base_url   = "https://${local.domain_name}"
+  domain_name = trimsuffix(var.domain_root, ".")
+  alias_domain_names = sort(distinct([
+    for name in var.alias_domain_names : trimsuffix(name, ".")
+    if trimsuffix(name, ".") != local.domain_name
+  ]))
+  cloudfront_aliases = concat([local.domain_name], local.alias_domain_names)
+  route53_zone_name  = trimsuffix(var.route53_zone_name, ".")
+  public_base_url    = "https://${local.domain_name}"
 
   resource_prefix        = lower(replace(local.unique_id_account, "_", "-"))
   global_resource_prefix = lower(replace(local.unique_id_global, "_", "-"))

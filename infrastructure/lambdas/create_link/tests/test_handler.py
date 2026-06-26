@@ -67,6 +67,7 @@ class CreateLinkHandlerTests(unittest.TestCase):
             "public_base_url": "https://lynx.example.com",
             "alerts_topic_arn": "arn:aws:sns:us-east-1:123456789012:alerts",
             "environment": "test",
+            "public_hosts": (),
             "default_ttl": "24h",
             "max_url_length": 2048,
             "code_length": 8,
@@ -154,6 +155,74 @@ class CreateLinkHandlerTests(unittest.TestCase):
         self.assertEqual(s3.put_calls[0]["Bucket"], "redirect-bucket")
         self.assertEqual(s3.put_calls[0]["Key"], "l/aB3kP9xQ")
         self.assertEqual(sns.publish_calls[0]["TopicArn"], handler.config.alerts_topic_arn)
+
+    def test_uses_allowed_viewer_host_for_short_url(self) -> None:
+        handler, _, sns = self.make_handler(
+            config=self.make_config(
+                public_base_url="https://prod.lynx.example.com",
+                public_hosts=("prod.lynx.example.com", "lynx.example.com"),
+            )
+        )
+
+        response, body = self.invoke(
+            handler,
+            self.make_event(
+                {"url": "https://example.com/alias-host", "ttl": "24h"},
+                headers={
+                    "x-lynx-viewer-host": "lynx.example.com",
+                    "x-forwarded-for": "203.0.113.10",
+                },
+            ),
+        )
+
+        self.assertEqual(response["statusCode"], 201)
+        self.assertEqual(body["short_url"], "https://lynx.example.com/l/aB3kP9xQ")
+        message = json.loads(sns.publish_calls[0]["Message"])
+        self.assertEqual(message["short_url"], "https://lynx.example.com/l/aB3kP9xQ")
+
+    def test_uses_allowed_origin_host_for_short_url(self) -> None:
+        handler, _, _ = self.make_handler(
+            config=self.make_config(
+                public_base_url="https://prod.lynx.example.com",
+                public_hosts=("prod.lynx.example.com", "lynx.example.com"),
+            )
+        )
+
+        response, body = self.invoke(
+            handler,
+            self.make_event(
+                {"url": "https://example.com/origin-host", "ttl": "24h"},
+                headers={
+                    "origin": "https://lynx.example.com",
+                    "x-forwarded-for": "203.0.113.10",
+                },
+            ),
+        )
+
+        self.assertEqual(response["statusCode"], 201)
+        self.assertEqual(body["short_url"], "https://lynx.example.com/l/aB3kP9xQ")
+
+    def test_falls_back_to_configured_public_base_url_for_unknown_host(self) -> None:
+        handler, _, _ = self.make_handler(
+            config=self.make_config(
+                public_base_url="https://prod.lynx.example.com",
+                public_hosts=("prod.lynx.example.com", "lynx.example.com"),
+            )
+        )
+
+        response, body = self.invoke(
+            handler,
+            self.make_event(
+                {"url": "https://example.com/unknown-host", "ttl": "24h"},
+                headers={
+                    "origin": "https://not-lynx.example.net",
+                    "x-forwarded-for": "203.0.113.10",
+                },
+            ),
+        )
+
+        self.assertEqual(response["statusCode"], 201)
+        self.assertEqual(body["short_url"], "https://prod.lynx.example.com/l/aB3kP9xQ")
 
     def test_successful_7d_link_creation(self) -> None:
         handler, _, _ = self.make_handler(codes=("7DayCode",))

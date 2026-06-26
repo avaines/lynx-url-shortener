@@ -1,0 +1,348 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadCallerIdentity",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageTerraformStateObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::terraform-804221019544-state/lynx-url-shortener/*"
+      ]
+    },
+    {
+      "Sid": "ReadTerraformStateBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::terraform-804221019544-state"
+      ]
+    },
+    {
+      "Sid": "ListTerraformStateBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::terraform-804221019544-state"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "",
+            "lynx-url-shortener/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadS3AccountMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetAccountPublicAccessBlock",
+        "s3:ListAllMyBuckets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageLynxBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:DeleteBucketPolicy",
+        "s3:DeleteBucketWebsite",
+        "s3:DeleteObject",
+        "s3:DeleteObjectTagging",
+        "s3:GetBucket*",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:GetObject",
+        "s3:GetObjectTagging",
+        "s3:ListBucket",
+        "s3:ListBucketVersions",
+        "s3:PutBucket*",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutLifecycleConfiguration",
+        "s3:PutObject",
+        "s3:PutObjectTagging"
+      ],
+      "Resource": [
+        "arn:aws:s3:::804221019544-us-east-1-dev-lynx-*",
+        "arn:aws:s3:::804221019544-us-east-1-dev-lynx-*/*",
+        "arn:aws:s3:::804221019544-us-east-1-prod-lynx-*",
+        "arn:aws:s3:::804221019544-us-east-1-prod-lynx-*/*"
+      ]
+    },
+    {
+      "Sid": "ManageLynxIamRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:ListRolePolicies",
+        "iam:ListRoleTags",
+        "iam:PutRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy"
+      ],
+      "Resource": [
+        "arn:aws:iam::804221019544:role/dev-us-east-1-lynx-*",
+        "arn:aws:iam::804221019544:role/prod-us-east-1-lynx-*",
+        "arn:aws:iam::804221019544:role/804221019544-us-east-1-dev-lynx-*",
+        "arn:aws:iam::804221019544:role/804221019544-us-east-1-prod-lynx-*"
+      ]
+    },
+    {
+      "Sid": "PassLynxLambdaRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::804221019544:role/dev-us-east-1-lynx-*",
+        "arn:aws:iam::804221019544:role/prod-us-east-1-lynx-*",
+        "arn:aws:iam::804221019544:role/804221019544-us-east-1-dev-lynx-*",
+        "arn:aws:iam::804221019544:role/804221019544-us-east-1-prod-lynx-*"
+      ],
+      "Condition": {
+        "StringLike": {
+          "iam:PassedToService": [
+            "edgelambda.amazonaws.com",
+            "lambda.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "CreateRequiredServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateServiceLinkedRole"
+      ],
+      "Resource": "arn:aws:iam::*:role/aws-service-role/*",
+      "Condition": {
+        "StringLike": {
+          "iam:AWSServiceName": [
+            "cloudfront.amazonaws.com",
+            "lambda.amazonaws.com",
+            "replicator.lambda.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadIamMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListPolicies",
+        "iam:ListRoles"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageLynxLambdaFunctions",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:AddPermission",
+        "lambda:CreateFunction",
+        "lambda:CreateFunctionUrlConfig",
+        "lambda:DeleteFunction",
+        "lambda:DeleteFunctionUrlConfig",
+        "lambda:DisableReplication*",
+        "lambda:EnableReplication*",
+        "lambda:GetFunction",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:GetPolicy",
+        "lambda:ListTags",
+        "lambda:ListVersionsByFunction",
+        "lambda:PublishVersion",
+        "lambda:RemovePermission",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:UpdateFunctionUrlConfig"
+      ],
+      "Resource": [
+        "arn:aws:lambda:us-east-1:804221019544:function:dev-us-east-1-lynx-*",
+        "arn:aws:lambda:us-east-1:804221019544:function:dev-us-east-1-lynx-*:*",
+        "arn:aws:lambda:us-east-1:804221019544:function:prod-us-east-1-lynx-*",
+        "arn:aws:lambda:us-east-1:804221019544:function:prod-us-east-1-lynx-*:*",
+        "arn:aws:lambda:us-east-1:804221019544:function:804221019544-us-east-1-dev-lynx-*",
+        "arn:aws:lambda:us-east-1:804221019544:function:804221019544-us-east-1-dev-lynx-*:*",
+        "arn:aws:lambda:us-east-1:804221019544:function:804221019544-us-east-1-prod-lynx-*",
+        "arn:aws:lambda:us-east-1:804221019544:function:804221019544-us-east-1-prod-lynx-*:*"
+      ]
+    },
+    {
+      "Sid": "ReadLambdaMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:ListFunctions"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageLynxCloudFront",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateDistribution",
+        "cloudfront:CreateInvalidation",
+        "cloudfront:CreateOriginAccessControl",
+        "cloudfront:DeleteDistribution",
+        "cloudfront:DeleteOriginAccessControl",
+        "cloudfront:GetCachePolicy",
+        "cloudfront:GetDistribution",
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:GetInvalidation",
+        "cloudfront:GetOriginAccessControl",
+        "cloudfront:GetOriginAccessControlConfig",
+        "cloudfront:GetOriginRequestPolicy",
+        "cloudfront:ListCachePolicies",
+        "cloudfront:ListDistributions",
+        "cloudfront:ListInvalidations",
+        "cloudfront:ListOriginAccessControls",
+        "cloudfront:ListOriginRequestPolicies",
+        "cloudfront:ListTagsForResource",
+        "cloudfront:TagResource",
+        "cloudfront:UntagResource",
+        "cloudfront:UpdateDistribution",
+        "cloudfront:UpdateOriginAccessControl"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageLynxAcmCertificates",
+      "Effect": "Allow",
+      "Action": [
+        "acm:AddTagsToCertificate",
+        "acm:DeleteCertificate",
+        "acm:DescribeCertificate",
+        "acm:GetCertificate",
+        "acm:ListCertificates",
+        "acm:ListTagsForCertificate",
+        "acm:RemoveTagsFromCertificate",
+        "acm:RequestCertificate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadRoute53Zones",
+      "Effect": "Allow",
+      "Action": [
+        "route53:GetChange",
+        "route53:GetHostedZone",
+        "route53:ListHostedZones",
+        "route53:ListHostedZonesByName",
+        "route53:ListResourceRecordSets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageLynxRoute53Records",
+      "Effect": "Allow",
+      "Action": [
+        "route53:ChangeResourceRecordSets"
+      ],
+      "Resource": [
+        "arn:aws:route53:::hostedzone/Z03092371GH17DANQX80G"
+      ]
+    },
+    {
+      "Sid": "ManageLynxSnsTopics",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:DeleteTopic",
+        "sns:GetTopicAttributes",
+        "sns:ListSubscriptionsByTopic",
+        "sns:ListTagsForResource",
+        "sns:SetTopicAttributes",
+        "sns:TagResource",
+        "sns:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:sns:us-east-1:804221019544:dev-us-east-1-lynx-alerts",
+        "arn:aws:sns:us-east-1:804221019544:prod-us-east-1-lynx-alerts"
+      ]
+    },
+    {
+      "Sid": "ManageLynxSnsSubscriptions",
+      "Effect": "Allow",
+      "Action": [
+        "sns:GetSubscriptionAttributes",
+        "sns:ListSubscriptions",
+        "sns:SetSubscriptionAttributes",
+        "sns:Subscribe",
+        "sns:Unsubscribe"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageLynxCloudWatchAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DeleteAlarms",
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:ListTagsForResource",
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:TagResource",
+        "cloudwatch:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:cloudwatch:us-east-1:804221019544:alarm:*lynx*"
+      ]
+    },
+    {
+      "Sid": "ManageLynxLogGroups",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:DeleteRetentionPolicy",
+        "logs:ListTagsForResource",
+        "logs:PutRetentionPolicy",
+        "logs:TagResource",
+        "logs:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:804221019544:log-group:/aws/lambda/*lynx*"
+      ]
+    },
+    {
+      "Sid": "ReadLogsAndTagMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "tag:GetResources"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

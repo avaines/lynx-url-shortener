@@ -15,6 +15,8 @@ export type CreateLinkResponse = {
 
 type ErrorResponse = {
   error?: string;
+  message?: string;
+  Message?: string;
 };
 
 export async function createLink(request: CreateLinkRequest): Promise<CreateLinkResponse> {
@@ -29,7 +31,11 @@ export async function createLink(request: CreateLinkRequest): Promise<CreateLink
   const body = (await response.json().catch(() => ({}))) as ErrorResponse | CreateLinkResponse;
 
   if (!response.ok) {
-    const message = "error" in body && body.error ? body.error : "Unable to create link.";
+    const message =
+      ("error" in body && body.error) ||
+      ("message" in body && body.message) ||
+      ("Message" in body && body.Message) ||
+      "Unable to create link.";
     throw new Error(message);
   }
 

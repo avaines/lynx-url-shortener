@@ -5,9 +5,7 @@ resource "aws_cloudfront_distribution" "main" {
   is_ipv6_enabled     = true
   price_class         = "PriceClass_100"
 
-  aliases = [
-    local.domain_name,
-  ]
+  aliases = local.cloudfront_aliases
 
   origin {
     domain_name              = aws_s3_bucket.portal.bucket_regional_domain_name

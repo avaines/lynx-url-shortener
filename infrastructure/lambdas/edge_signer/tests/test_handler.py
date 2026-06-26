@@ -103,6 +103,7 @@ class EdgeSignerTests(unittest.TestCase):
         authorization = self.header_value(request, "Authorization")
 
         self.assertEqual(self.header_value(request, "Host"), LAMBDA_URL_HOST)
+        self.assertEqual(self.header_value(request, "X-Lynx-Viewer-Host"), "lynx.example.com")
         self.assertEqual(self.header_value(request, "X-Amz-Date"), "20260626T120000Z")
         self.assertTrue(authorization.startswith("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/"))
         self.assertIn("/20260626/us-east-1/lambda/aws4_request", authorization)
