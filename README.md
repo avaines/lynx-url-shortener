@@ -175,8 +175,6 @@ DISTRIBUTION_ID=$(cd ../infrastructure/terraform/environments/dev && terraform o
 aws cloudfront create-invalidation --distribution-id "${DISTRIBUTION_ID}" --paths "/*"
 ```
 
-The detailed end-to-end checklist is in [notes/TASKS.md](notes/TASKS.md).
-
 ## Current Tradeoffs
 
 - S3 website redirects return HTTP `301`. Returning `307` would require a
