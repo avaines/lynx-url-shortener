@@ -1,5 +1,5 @@
 resource "aws_sns_topic_subscription" "alert_email" {
   topic_arn = aws_sns_topic.alerts.arn
-  protocol  = "email"
+  protocol  = "email-json"
   endpoint  = var.alert_email
 }
