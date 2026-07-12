@@ -79,7 +79,7 @@ export function App() {
             </div>
             <div className="brand-copy">
               <p className="eyebrow">lynx.vaines.dev</p>
-              <h1 id="portal-title">Issue a short link</h1>
+              <h1 id="portal-title">Link Shortener</h1>
             </div>
           </header>
 
