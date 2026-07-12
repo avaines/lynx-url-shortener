@@ -1,4 +1,11 @@
-import { Check, Clipboard, ExternalLink, Link2, Loader2, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  Clipboard,
+  ExternalLink,
+  Link2,
+  Loader2,
+  ShieldCheck
+} from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { createLink, type CreateLinkResponse, type TtlOption } from "./api";
 
@@ -65,18 +72,16 @@ export function App() {
         aria-labelledby="portal-title"
       >
         <div className="work-panel">
-          <div className="brand-row">
+          <header className="brand-row">
             <div className="brand-mark" aria-hidden="true">
-              <Link2 size={28} strokeWidth={2.4} />
+              <span>L</span>
+              <Link2 size={19} strokeWidth={2.5} />
             </div>
-            <div>
-              <p className="eyebrow">
-                <b>Lynx</b>
-                <i>.vaines.dev</i>
-              </p>
-              <h1 id="portal-title">Link Shortener</h1>
+            <div className="brand-copy">
+              <p className="eyebrow">lynx.vaines.dev</p>
+              <h1 id="portal-title">Issue a short link</h1>
             </div>
-          </div>
+          </header>
 
           <form className="link-form" onSubmit={handleSubmit} noValidate>
             <label htmlFor="target-url">Destination URL</label>
@@ -100,7 +105,7 @@ export function App() {
             <p id="url-hint" className={trimmedUrl && urlError ? "field-error" : "field-hint"}>
               {trimmedUrl && urlError
                 ? urlError
-                : "HTTPS is required. Bare domains are prefixed automatically."}
+                : "HTTPS only. Bare domains are normalised before they are sent."}
             </p>
 
             <fieldset>
@@ -160,6 +165,16 @@ export function App() {
                 <dt>Lifetime</dt>
                 <dd>{result.ttl === "24h" ? "24 hours" : "7 days"}</dd>
               </div>
+              <div>
+                <dt>Target</dt>
+                <dd>
+                  <a href={result.target_url}>{result.target_url}</a>
+                </dd>
+              </div>
+              <div>
+                <dt>Nominal expiry</dt>
+                <dd>{formatExpiry(result.nominal_expires_at)}</dd>
+              </div>
             </dl>
             <button className="copy-button" type="button" onClick={handleCopy}>
               {copied ? (
@@ -174,6 +189,18 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function formatExpiry(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
 }
 
 function normalizeTargetUrl(value: string): string {
