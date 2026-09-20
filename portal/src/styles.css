@@ -323,15 +323,30 @@ fieldset {
   font-weight: 850;
 }
 
-.short-url {
-  display: block;
-  overflow-wrap: anywhere;
+.result-summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #d8d0bf;
+  border-radius: 8px;
+  background: #fbf6e9;
+}
+
+.result-summary span {
+  color: #766f62;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.result-summary strong {
+  overflow: hidden;
   color: #1f2421;
-  font-size: clamp(1.35rem, 3vw, 2rem);
-  font-weight: 850;
-  line-height: 1.12;
-  text-decoration-color: rgba(15, 95, 88, 0.35);
-  text-underline-offset: 5px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 dl {
@@ -351,15 +366,21 @@ dl div {
 
 dd {
   margin: 3px 0 0;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
   color: #1f2421;
   font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 dd a {
+  display: block;
+  overflow: hidden;
   color: inherit;
   text-decoration-color: rgba(15, 95, 88, 0.35);
   text-underline-offset: 3px;
+  text-overflow: ellipsis;
 }
 
 @keyframes spin {

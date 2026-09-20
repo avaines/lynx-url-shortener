@@ -100,9 +100,8 @@ describe("App", () => {
     await user.type(screen.getByLabelText(/destination url/i), "https://example.com/copy");
     await user.click(screen.getByRole("button", { name: /create short link/i }));
 
-    expect(
-      await screen.findByRole("link", { name: "https://lynx.example.com/l/copyCode" })
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Short link generated")).toBeInTheDocument();
+    expect(screen.getByText("/l/copyCode")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /copy link/i }));
 

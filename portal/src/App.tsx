@@ -153,9 +153,10 @@ export function App() {
               <ShieldCheck size={22} aria-hidden="true" />
               <span>Ready</span>
             </div>
-            <a href={result.short_url} className="short-url">
-              {result.short_url}
-            </a>
+            <div className="result-summary">
+              <span>Short link generated</span>
+              <strong>/l/{result.code}</strong>
+            </div>
             <dl>
               <div>
                 <dt>Code</dt>
