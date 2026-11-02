@@ -4,9 +4,11 @@ import json
 import sys
 import unittest
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -29,6 +31,7 @@ class FakeS3Client:
         self.existing_keys = set(existing_keys or set())
         self.head_calls: list[dict[str, Any]] = []
         self.put_calls: list[dict[str, Any]] = []
+        self.objects: dict[str, dict[str, Any]] = {}
 
     def head_object(self, **kwargs: Any) -> dict[str, Any]:
         self.head_calls.append(kwargs)
@@ -39,7 +42,15 @@ class FakeS3Client:
     def put_object(self, **kwargs: Any) -> dict[str, Any]:
         self.put_calls.append(kwargs)
         self.existing_keys.add(kwargs["Key"])
+        self.objects[kwargs["Key"]] = kwargs.copy()
         return {}
+
+    def get_object(self, **kwargs: Any) -> dict[str, Any]:
+        if kwargs["Key"] not in self.objects:
+            raise FakeClientError("NoSuchKey", 404)
+        obj = self.objects[kwargs["Key"]].copy()
+        obj["Body"] = BytesIO(obj["Body"])
+        return obj
 
 
 class FakeSnsClient:
@@ -69,7 +80,7 @@ class CreateLinkHandlerTests(unittest.TestCase):
             "environment": "test",
             "public_hosts": (),
             "default_ttl": "24h",
-            "max_url_length": 2048,
+            "max_url_length": 16384,
             "code_length": 8,
             "max_code_attempts": 5,
         }
@@ -364,13 +375,89 @@ class CreateLinkHandlerTests(unittest.TestCase):
         )
 
         self.assertEqual(response["statusCode"], 201)
-        self.assertEqual(s3.put_calls[0]["Body"], b"")
-        self.assertEqual(s3.put_calls[0]["ContentType"], "text/plain")
-        self.assertEqual(
-            s3.put_calls[0]["WebsiteRedirectLocation"],
-            "https://example.com/redirect-target",
-        )
+        self.assertEqual(s3.put_calls[0]["Body"], b"https://example.com/redirect-target")
+        self.assertEqual(s3.put_calls[0]["ContentType"], "text/plain; charset=utf-8")
+        self.assertNotIn("WebsiteRedirectLocation", s3.put_calls[0])
         self.assertEqual(s3.put_calls[0]["Tagging"], "ttl=7d")
+
+    def test_long_signed_url_round_trip_at_limit(self) -> None:
+        handler, s3, sns = self.make_handler()
+        prefix = "https://bucket.s3.amazonaws.com/file%20name?X-Amz-Token=a%2Fb%2B&sig="
+        target = prefix.ljust(16384, "a")
+        created, body = self.invoke(handler, self.make_event({"url": target}))
+        self.assertEqual(created["statusCode"], 201)
+        for method in ("GET", "HEAD"):
+            response = handler.handle(
+                self.make_event({}, method=method, path=f"/l/{body['code']}"), None
+            )
+            self.assertEqual(response["statusCode"], 302)
+            self.assertEqual(response["headers"]["Location"], target)
+            self.assertEqual(response["headers"]["Cache-Control"], "no-store")
+            self.assertEqual(response["body"], "")
+        self.assertEqual(len(s3.put_calls), 1)
+        self.assertEqual(len(sns.publish_calls), 1)
+
+    def test_legacy_redirect(self) -> None:
+        handler, s3, sns = self.make_handler()
+        s3.objects["l/oldCode"] = {
+            "Body": b"",
+            "WebsiteRedirectLocation": "https://example.com/?a=%2F&b=2",
+        }
+        response = handler.handle(self.make_event({}, method="GET", path="/l/oldCode"), None)
+        self.assertEqual(response["statusCode"], 302)
+        self.assertEqual(response["headers"]["Location"], "https://example.com/?a=%2F&b=2")
+        self.assertEqual(sns.publish_calls, [])
+
+    def test_missing_and_invalid_redirects(self) -> None:
+        handler, _, _ = self.make_handler()
+        for path in ("/l/missing", "/l/../secret", "/l/", "/l/a/b"):
+            for method in ("GET", "HEAD"):
+                response = handler.handle(self.make_event({}, method=method, path=path), None)
+                self.assertEqual(response["statusCode"], 404)
+                if method == "HEAD":
+                    self.assertEqual(response["body"], "")
+
+    def test_redirect_rejects_post(self) -> None:
+        handler, _, _ = self.make_handler()
+        response, _ = self.invoke(handler, self.make_event({}, path="/l/aCode"))
+        self.assertEqual(response["statusCode"], 405)
+        self.assertEqual(response["headers"]["Allow"], "GET, HEAD")
+
+    def test_unsafe_or_oversized_urls_are_rejected(self) -> None:
+        handler, s3, _ = self.make_handler()
+        for target in (
+            "https://example.com/".ljust(16385, "a"),
+            "https://example.com/a\r\nInjected: value",
+            "https://example.com/a\x00",
+            "https://example.com/café",
+        ):
+            response, _ = self.invoke(handler, self.make_event({"url": target}))
+            self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(s3.put_calls, [])
+
+    def test_invalid_stored_redirect_returns_500_and_closes_body(self) -> None:
+        handler, s3, _ = self.make_handler()
+        stream = BytesIO(b"https://example.com/\r\nInjected: value")
+        with (
+            patch.object(s3, "get_object", return_value={"Body": stream}),
+            self.assertLogs("create_link.handler", level="ERROR"),
+        ):
+            response = handler.handle(self.make_event({}, method="GET", path="/l/code"), None)
+        self.assertEqual(response["statusCode"], 500)
+        self.assertNotIn("Location", response["headers"])
+        self.assertTrue(stream.closed)
+
+    def test_other_s3_errors_remain_server_errors(self) -> None:
+        handler, s3, sns = self.make_handler()
+        with (
+            patch.object(s3, "put_object", side_effect=FakeClientError("AccessDenied", 403)),
+            self.assertLogs("create_link.handler", level="ERROR"),
+        ):
+            response, body = self.invoke(handler, self.make_event({"url": "https://example.com/"}))
+
+        self.assertEqual(response["statusCode"], 500)
+        self.assertEqual(body["error"], "internal server error")
+        self.assertEqual(sns.publish_calls, [])
 
     def test_sns_payload_includes_required_fields(self) -> None:
         handler, _, sns = self.make_handler()

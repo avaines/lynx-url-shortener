@@ -100,8 +100,13 @@ variable "code_length" {
 
 variable "max_url_length" {
   type        = number
-  description = "Maximum accepted target URL length"
-  default     = 2048
+  description = "Maximum accepted target URL length (ASCII bytes)"
+  default     = 16384
+
+  validation {
+    condition     = var.max_url_length > 0 && var.max_url_length <= 16384 && floor(var.max_url_length) == var.max_url_length
+    error_message = "max_url_length must be an integer between 1 and 16384."
+  }
 }
 
 variable "lambda_runtime" {

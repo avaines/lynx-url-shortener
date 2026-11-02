@@ -94,11 +94,18 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   ordered_cache_behavior {
-    path_pattern           = "/l/*"
-    target_origin_id       = local.redirects_origin_id
-    viewer_protocol_policy = "redirect-to-https"
-    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_disabled.id
-    compress               = false
+    path_pattern             = "/l/*"
+    target_origin_id         = local.api_origin_id
+    viewer_protocol_policy   = "redirect-to-https"
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    compress                 = false
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
+
+    lambda_function_association {
+      event_type = "origin-request"
+      lambda_arn = aws_lambda_function.edge_signer.qualified_arn
+    }
+
 
     allowed_methods = [
       "GET",

@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+import re
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from typing import Any
 from urllib.parse import quote, urlsplit
 
 LOGGER = logging.getLogger(__name__)
+
+MAX_REDIRECT_BYTES = 16384
 
 CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 TTL_DAYS = {
@@ -39,7 +42,7 @@ class Config:
     environment: str = "unknown"
     public_hosts: tuple[str, ...] = ()
     default_ttl: str = "24h"
-    max_url_length: int = 2048
+    max_url_length: int = MAX_REDIRECT_BYTES
     code_length: int = 8
     max_code_attempts: int = 5
 
@@ -71,7 +74,7 @@ class Config:
             environment=values.get("ENVIRONMENT", "unknown"),
             public_hosts=public_hosts,
             default_ttl=default_ttl,
-            max_url_length=int(values.get("MAX_URL_LENGTH", "2048")),
+            max_url_length=int(values.get("MAX_URL_LENGTH", str(MAX_REDIRECT_BYTES))),
             code_length=int(values.get("CODE_LENGTH", "8")),
             max_code_attempts=int(values.get("MAX_CODE_ATTEMPTS", "5")),
         )
@@ -95,6 +98,12 @@ class CreateLinkHandler:
     def handle(self, event: dict[str, Any], context: Any) -> dict[str, Any]:
         try:
             method = get_method(event)
+            path = get_path(event)
+            if path.startswith("/l/"):
+                response = self.resolve_redirect(path, method)
+                if method == "HEAD":
+                    response["body"] = ""
+                return response
             if method != "POST":
                 return json_response(
                     405,
@@ -102,7 +111,6 @@ class CreateLinkHandler:
                     extra_headers={"Allow": "POST"},
                 )
 
-            path = get_path(event)
             if path != "/api/links":
                 return json_response(404, {"error": "not found"})
 
@@ -143,7 +151,7 @@ class CreateLinkHandler:
         except CollisionRetriesExhausted:
             return json_response(409, {"error": "generated code collision retries exhausted"})
         except Exception:
-            LOGGER.exception("Unexpected create-link failure")
+            LOGGER.exception("Unexpected link request failure")
             return json_response(500, {"error": "internal server error"})
 
     def create_redirect_object(self, target_url: str, ttl: str) -> tuple[str, str]:
@@ -156,14 +164,45 @@ class CreateLinkHandler:
             self.s3_client.put_object(
                 Bucket=self.config.redirect_bucket_name,
                 Key=object_key,
-                Body=b"",
-                ContentType="text/plain",
-                WebsiteRedirectLocation=target_url,
+                Body=target_url.encode("utf-8"),
+                ContentType="text/plain; charset=utf-8",
                 Tagging=f"ttl={quote(ttl, safe='')}",
             )
             return code, object_key
 
         raise CollisionRetriesExhausted()
+
+    def resolve_redirect(self, path: str, method: str) -> dict[str, Any]:
+        if method not in {"GET", "HEAD"}:
+            return json_response(
+                405, {"error": "method not allowed"}, extra_headers={"Allow": "GET, HEAD"}
+            )
+        if not re.fullmatch(r"/l/[A-Za-z0-9]+", path):
+            return json_response(404, {"error": "not found"})
+        try:
+            obj = self.s3_client.get_object(Bucket=self.config.redirect_bucket_name, Key=path[1:])
+        except Exception as error:
+            if is_not_found_error(error):
+                return json_response(404, {"error": "link not found or expired"})
+            raise
+
+        stream = obj["Body"]
+        try:
+            # Legacy objects have an empty body and the URL in website metadata.
+            target_url = obj.get("WebsiteRedirectLocation")
+            if not target_url:
+                target_url = stream.read(MAX_REDIRECT_BYTES + 1).decode("utf-8")
+        finally:
+            stream.close()
+        try:
+            target_url = validate_url(target_url, MAX_REDIRECT_BYTES)
+        except RequestError as error:
+            raise RuntimeError("Invalid stored redirect") from error
+        return {
+            "statusCode": 302,
+            "headers": {"Location": target_url, "Cache-Control": "no-store"},
+            "body": "",
+        }
 
     def object_exists(self, object_key: str) -> bool:
         try:
@@ -293,6 +332,13 @@ def validate_url(value: Any, max_url_length: int) -> str:
 
     if len(target_url) > max_url_length:
         raise RequestError(400, f"url must be {max_url_length} characters or fewer")
+
+    if any(ord(char) < 33 or ord(char) == 127 for char in target_url):
+        raise RequestError(400, "url must not contain whitespace or control characters")
+    if not target_url.isascii():
+        raise RequestError(400, "url must use percent-encoding for non-ASCII characters")
+    if len(target_url.encode("utf-8")) > MAX_REDIRECT_BYTES:
+        raise RequestError(400, f"url must be {MAX_REDIRECT_BYTES} bytes or fewer")
 
     try:
         parsed = urlsplit(target_url)

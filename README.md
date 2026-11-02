@@ -2,7 +2,7 @@
 
 Lynx is a serverless URL shortener built on AWS. It serves a React portal from
 S3 through CloudFront, creates short links through a protected Lambda Function
-URL, and resolves short links through S3 website redirect objects.
+URL, and resolves short links through Lambda using URLs stored in S3 object bodies.
 
 The first version deliberately avoids API Gateway. Browser traffic enters
 through CloudFront. API requests to `/api/*` are signed by Lambda@Edge before
@@ -14,9 +14,11 @@ they reach the create-link Lambda Function URL, and public short links use the
 - CloudFront is the public entrypoint for the portal, API, and redirects.
 - The portal is a Vite, React, and TypeScript app in `portal/`.
 - `POST /api/links` routes to a Lambda Function URL protected with `AWS_IAM`.
-- Lambda@Edge signs API origin requests with SigV4.
+- Lambda@Edge signs API and redirect origin requests with SigV4.
 - Short links are generated server-side and written as S3 objects at `l/{code}`.
-- S3 website redirect metadata points each short link at its target URL.
+- `GET` and `HEAD /l/{code}` use the same protected Lambda endpoint to read
+  the target from S3 and return HTTP `302` with `Cache-Control: no-store`.
+- Existing S3 website redirect metadata is still readable by the resolver.
 - Redirect objects are tagged with `ttl=24h` or `ttl=7d`.
 - S3 lifecycle rules expire redirect objects after 1 or 7 days.
 - SNS alerts are published when links are created and when CloudWatch alarms fire.
@@ -145,7 +147,7 @@ After applying the dev infrastructure:
 2. Upload `portal/dist/` to the Terraform output portal bucket.
 3. Open the CloudFront-backed domain.
 4. Create a link through the portal.
-5. Visit `/l/{code}` and confirm the S3 website redirect works.
+5. Visit `/l/{code}` and confirm the Lambda returns HTTP `302` with the exact destination in `Location`.
 6. Confirm the SNS alert contains the expected link creation details.
 
 Example portal upload for dev:
@@ -177,9 +179,30 @@ aws cloudfront create-invalidation --distribution-id "${DISTRIBUTION_ID}" --path
 
 ## Current Tradeoffs
 
-- S3 website redirects return HTTP `301`. Returning `307` would require a
-  Lambda redirect resolver instead of the native S3 redirect engine.
+- Target URLs support up to 16,384 ASCII bytes (configurable downwards with
+  `max_url_length`). Non-ASCII characters must be percent-encoded. The destination
+  and its signed query string are stored and returned without re-encoding.
+- Each redirect requires a Lambda invocation and an S3 read. Redirects are not
+  cached, so deletion takes effect on subsequent requests.
+- The 16 KiB cap leaves header overhead below CloudFront's
+  [32 KiB origin-response limit](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-limits.html).
+  Destination servers and clients can impose their own URL limits.
+- Shortening a presigned URL does not extend its underlying signature expiry.
 - S3 lifecycle expiration is day-based and asynchronous, so displayed expiry
   timestamps are nominal.
 - Link creation is public in the initial version. Future hardening may add
   authentication, WAF rate rules, custom aliases, analytics, or admin views.
+
+## Migrating existing S3 website redirects
+
+Deploy the Lambda code and the CloudFront `/l/*` routing change together during
+an interval when link creation is paused. Wait until the CloudFront distribution
+reports `Deployed` before resuming creation: old edge configurations cannot resolve
+new body-only objects. Existing metadata-based objects continue to work with both
+the old S3 origin and the new Lambda resolver; no data migration is required.
+Do not roll routing back to the S3 website origin after creating body-only links.
+
+After deployment, create a synthetic URL longer than 2 KiB and verify both GET and
+HEAD return 302 with an identical `Location` value. Also verify an existing link
+and a missing code (404). Do not follow the destination when testing the redirect
+itself. The retained S3 website origin/resources can be removed in a later cleanup.
